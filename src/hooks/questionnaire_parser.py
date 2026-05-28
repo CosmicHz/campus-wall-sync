@@ -42,6 +42,25 @@ from src.config import config
 logger = logging.getLogger(__name__)
 
 
+def _safe_str(value: Any) -> str | None:
+    """
+    安全地将值转换为字符串，处理各种异常情况
+    
+    Args:
+        value: 任意类型的值
+        
+    Returns:
+        处理后的字符串，如果为空则返回 None
+    """
+    if value is None:
+        return None
+    try:
+        result = str(value).strip()
+        return result if result else None
+    except Exception:
+        return None
+
+
 # ========================================
 # tduck 字段映射配置
 # ========================================
@@ -123,19 +142,34 @@ def parse_questionnaire(raw_data: Dict[str, Any]) -> Dict[str, Any]:
     class_name = form_data.get(FIELD_CLASS, "").strip() or None
     user_name = form_data.get(FIELD_NAME, "").strip() or None
 
-    # 提取微信用户信息
-    wx_info = raw_data.get("wxUserInfo", {})
-    wx_nickname = wx_info.get("nickname", "").strip() or None
-    wx_openid = wx_info.get("openid", "").strip() or None
-    wx_avatar = wx_info.get("headImgUrl", "").strip() or None
+    # 提取微信用户信息（安全处理，字段可能不存在或格式异常）
+    # 这种设计可能并非必须，所以此处以注释的方式保留简洁版代码
+    # wx_info = raw_data.get("wxUserInfo", {})
+    # wx_nickname = wx_info.get("nickname", "").strip() or None
+    # wx_openid = wx_info.get("openid", "").strip() or None
+    # wx_avatar = wx_info.get("headImgUrl", "").strip() or None
+    try:
+        wx_info = raw_data.get("wxUserInfo", {}) or {}
+        if not isinstance(wx_info, dict):
+            logger.warning(f"wxUserInfo 格式异常: {type(wx_info)}，已忽略")
+            wx_info = {}
+        
+        wx_nickname = _safe_str(wx_info.get("nickname"))
+        wx_openid = _safe_str(wx_info.get("openid"))
+        wx_avatar = _safe_str(wx_info.get("headImgUrl"))
+    except Exception as e:
+        logger.warning(f"解析微信用户信息失败: {e}，已忽略")
+        wx_nickname = None
+        wx_openid = None
+        wx_avatar = None
 
     # 如果 wxUserInfo 中没有 openid，尝试从顶层获取
     if not wx_openid:
-        wx_openid = raw_data.get("wxOpenId", "").strip() or None
+        wx_openid = _safe_str(raw_data.get("wxOpenId"))
 
-    # 提取提交信息
-    submit_address = raw_data.get("submitAddress", "").strip() or None
-    submit_time = raw_data.get("createTime", "").strip() or None
+    # 提取提交信息（安全处理）
+    submit_address = _safe_str(raw_data.get("submitAddress"))
+    submit_time = _safe_str(raw_data.get("createTime"))
 
     # 构建标题
     if class_name and user_name:
@@ -170,6 +204,7 @@ def parse_questionnaire(raw_data: Dict[str, Any]) -> Dict[str, Any]:
         "tags": tags,
         "tduck_id": raw_data.get("id"),
         "tduck_serial": raw_data.get("serialNumber"),
+        "raw_data": raw_data,
     }
 
     logger.info(f"解析完成 - 标题: {title}")

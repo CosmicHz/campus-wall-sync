@@ -75,6 +75,8 @@ class Post(Base):
     halo_post_id = Column(String(50), comment="Halo 文章 ID（同步后）")
     halo_post_url = Column(String(255), comment="Halo 文章链接（同步后）")
 
+    raw_data = Column(JSON, comment="tduck 原始数据（JSON 格式，用于数据还原）")
+
     created_at = Column(DateTime, default=datetime.now, comment="创建时间")
     synced_at = Column(DateTime, comment="同步到 Halo 的时间")
 

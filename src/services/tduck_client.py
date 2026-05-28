@@ -102,91 +102,51 @@ class TduckClient:
         self.logger.info(f"成功获取 {len(fields)} 个字段定义")
         return fields
 
-    def get_form_data(
-        self,
-        page: int = 1,
-        size: int = 10,
-        start_time: Optional[str] = None,
-        end_time: Optional[str] = None
-    ) -> Dict[str, Any]:
+    def get_form_data(self) -> Dict[str, Any]:
         """
-        获取表单提交数据
+        获取表单提交数据（全量）
 
-        API: GET /tduck-api/sync/form/data?apiKey=xxx&page=1&size=10
+        API: GET /tduck-api/sync/form/data?apiKey=xxx
 
-        Args:
-            page: 页码，从 1 开始
-            size: 每页数量
-            start_time: 开始时间，格式: 2026-03-14 00:00:00
-            end_time: 结束时间，格式: 2026-03-14 23:59:59
+        注意：tduck API 不支持分页参数，只能获取全量数据
 
         Returns:
-            包含 records, total, pages 等字段的数据字典
+            包含 records, total 等字段的数据字典
 
         Example:
             {
                 "records": [...],
-                "total": 100,
-                "size": 10,
-                "current": 1,
-                "pages": 10
+                "total": 100
             }
         """
-        self.logger.info(f"获取 tduck 表单数据 (page={page}, size={size})...")
+        self.logger.info("获取 tduck 表单全量数据...")
 
-        params = {
-            "page": page,
-            "size": size
-        }
-
-        if start_time:
-            params["startTime"] = start_time
-        if end_time:
-            params["endTime"] = end_time
-
-        response = self._make_request("/tduck-api/sync/form/data", params)
+        response = self._make_request("/tduck-api/sync/form/data")
 
         if response.get("code") != 200:
             raise ValueError(f"获取数据失败: {response.get('msg')}")
 
         data = response.get("data", {})
         records = data.get("records", [])
-        total = data.get("total", 0)
+        total = data.get("total", len(records))
 
-        self.logger.info(f"成功获取 {len(records)} 条记录，总计 {total} 条")
+        self.logger.info(f"成功获取 {len(records)} 条记录")
         return data
 
     def get_all_form_data(self) -> List[Dict[str, Any]]:
         """
-        获取所有表单数据（自动分页）
+        获取所有表单数据
 
         Returns:
             所有记录的列表
         """
         self.logger.info("开始获取所有表单数据...")
 
-        all_records = []
-        page = 1
-        size = 50  # 每页 50 条
+        data = self.get_form_data()
+        records = data.get("records", [])
 
-        while True:
-            data = self.get_form_data(page=page, size=size)
-            records = data.get("records", [])
-
-            if not records:
-                break
-
-            all_records.extend(records)
-
-            # 检查是否还有下一页
-            pages = data.get("pages", 1)
-            if page >= pages:
-                break
-
-            page += 1
-
-        self.logger.info(f"共获取 {len(all_records)} 条记录")
-        return all_records
+        self.logger.info(f"共获取 {len(records)} 条记录")
+        return records
 
     def validate_webhook_payload(self, payload: Dict[str, Any]) -> bool:
         """

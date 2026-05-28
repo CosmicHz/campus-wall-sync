@@ -43,7 +43,11 @@ def create_app() -> Flask:
     init_db()
 
     tduck_client = TduckClient()
-    halo_client = HaloClient()
+    
+    halo_enabled = config.halo.get("enabled", False)
+    halo_client = HaloClient() if halo_enabled else None
+    if not halo_enabled:
+        logger.info("Halo 同步已禁用（config.json 中 halo.enabled = false）")
 
     @app.route("/health", methods=["GET"])
     def health_check():
@@ -125,6 +129,7 @@ def create_app() -> Flask:
                 status="pending",
                 tduck_id=filtered_data.get("tduck_id"),
                 tduck_serial=filtered_data.get("tduck_serial"),
+                raw_data=filtered_data.get("raw_data"),
             )
             session.add(post)
             session.commit()
@@ -239,6 +244,14 @@ def create_app() -> Flask:
         追加模式：将多条投稿合并到一篇 Halo 文章中
         """
         try:
+            halo_enabled = config.halo.get("enabled", False)
+            if not halo_enabled:
+                return jsonify({
+                    "status": "skipped",
+                    "message": "Halo 同步已禁用（config.json 中 halo.enabled = false）",
+                    "hint": "如需启用，请将 config.json 中的 halo.enabled 设为 true"
+                }), 200
+
             body = request.get_json(silent=True) or {}
             post_ids = body.get("post_ids")
             mode = body.get("mode", "new")
@@ -282,13 +295,14 @@ def create_app() -> Flask:
                     tags=post.tags
                 )
 
+                halo_post_name = halo_result.get("metadata", {}).get("name", "")
                 post.status = "synced"
-                post.halo_post_id = str(halo_result.get("id", ""))
+                post.halo_post_id = halo_post_name
                 post.synced_at = datetime.now()
                 session.commit()
 
                 success_count += 1
-                logger.info(f"投稿 {post.id} 已同步到 Halo，文章 ID: {post.halo_post_id}")
+                logger.info(f"投稿 {post.id} 已同步到 Halo，文章 name: {halo_post_name}")
 
             except Exception as e:
                 error_count += 1
@@ -329,23 +343,23 @@ def create_app() -> Flask:
                 tags=["校园墙投稿"]
             )
 
-            halo_post_id = str(halo_result.get("id", ""))
+            halo_post_name = halo_result.get("metadata", {}).get("name", "")
 
             for post in posts:
                 post.status = "synced"
-                post.halo_post_id = halo_post_id
+                post.halo_post_id = halo_post_name
                 post.synced_at = datetime.now()
 
             session.commit()
 
-            logger.info(f"{len(posts)} 条投稿已合并同步到 Halo，文章 ID: {halo_post_id}")
+            logger.info(f"{len(posts)} 条投稿已合并同步到 Halo，文章 name: {halo_post_name}")
 
             return {
                 "status": "completed",
                 "mode": "append",
                 "total": len(posts),
                 "synced_count": len(posts),
-                "halo_post_id": halo_post_id
+                "halo_post_id": halo_post_name
             }
 
         except Exception as e:
@@ -429,6 +443,7 @@ def create_app() -> Flask:
                         status="pending",
                         tduck_id=filtered_data.get("tduck_id"),
                         tduck_serial=filtered_data.get("tduck_serial"),
+                        raw_data=filtered_data.get("raw_data"),
                     )
                     session.add(post)
                     session.commit()
@@ -484,9 +499,59 @@ def create_app() -> Flask:
     @app.route("/test/halo", methods=["GET"])
     def test_halo_connection():
         """测试 Halo 博客连接"""
+        if not halo_client:
+            return jsonify({
+                "status": "disabled",
+                "message": "Halo 同步已禁用",
+                "hint": "请将 config.json 中的 halo.enabled 设为 true"
+            }), 200
         try:
             result = halo_client.test_connection()
             return jsonify(result)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/test/halo/categories", methods=["GET"])
+    def get_halo_categories():
+        """
+        获取 Halo 分类列表
+
+        返回分类的 metadata.name，配置时需要使用这个 name 而不是显示名称
+        """
+        if not halo_client:
+            return jsonify({
+                "status": "disabled",
+                "message": "Halo 同步已禁用"
+            }), 200
+        try:
+            categories = halo_client.list_categories()
+            return jsonify({
+                "status": "success",
+                "categories": categories,
+                "hint": "配置 config.json 中的 default_category 时，请使用 name 字段的值"
+            })
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/test/halo/tags", methods=["GET"])
+    def get_halo_tags():
+        """
+        获取 Halo 标签列表
+
+        返回标签的 metadata.name，配置时需要使用这个 name 而不是显示名称
+        """
+        if not halo_client:
+            return jsonify({
+                "status": "disabled",
+                "message": "Halo 同步已禁用"
+            }), 200
+        try:
+            tags = halo_client.list_tags()
+            return jsonify({
+                "status": "success",
+                "tags": tags,
+                "hint": "配置 config.json 中的 default_tags 时，请使用 name 字段的值"
+            })
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
@@ -500,6 +565,112 @@ def create_app() -> Flask:
                 "message": f"成功连接到 tduck API，表单包含 {len(fields)} 个字段"
             })
         except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/api/scheduler/status", methods=["GET"])
+    def get_scheduler_status():
+        """
+        获取定时任务状态
+
+        返回定时任务是否运行、下次执行时间等信息
+        """
+        try:
+            from src.scheduler import get_scheduler_status
+            status = get_scheduler_status()
+            return jsonify({
+                "status": "success",
+                "scheduler": status
+            })
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/api/scheduler/run", methods=["POST"])
+    def run_sync_manually():
+        """
+        手动触发一次同步
+
+        立即从 tduck API 获取数据并同步到数据库
+        """
+        try:
+            from src.scheduler import sync_tduck_data
+            sync_tduck_data()
+            return jsonify({
+                "status": "success",
+                "message": "同步任务已执行"
+            })
+        except Exception as e:
+            logger.error(f"手动同步失败: {str(e)}", exc_info=True)
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/api/posts/create", methods=["POST"])
+    def create_post_manually():
+        """
+        手动创建投稿（用于测试）
+
+        Request Body:
+        {
+            "title": "投稿标题",
+            "content": "投稿内容",
+            "class_name": "班级（可选）",
+            "user_name": "姓名（可选）",
+            "wx_nickname": "微信昵称（可选）"
+        }
+        """
+        try:
+            data = request.get_json()
+            if not data:
+                return jsonify({"error": "请求体为空"}), 400
+
+            title = data.get("title")
+            content = data.get("content")
+
+            if not title or not content:
+                return jsonify({"error": "标题和内容不能为空"}), 400
+
+            from src.hooks.content_filter import filter_content
+
+            post_data = {
+                "title": title,
+                "content": content,
+                "class_name": data.get("class_name"),
+                "user_name": data.get("user_name"),
+                "wx_nickname": data.get("wx_nickname"),
+                "wx_openid": data.get("wx_openid"),
+                "tags": data.get("tags", []),
+            }
+
+            filtered_result = filter_content(post_data)
+            if not filtered_result["passed"]:
+                return jsonify({
+                    "status": "filtered",
+                    "reason": filtered_result["reason"]
+                }), 200
+
+            filtered_data = filtered_result["data"]
+
+            session = get_session()
+            post = Post(
+                title=filtered_data["title"],
+                content=filtered_data["content"],
+                class_name=filtered_data.get("class_name"),
+                user_name=filtered_data.get("user_name"),
+                wx_nickname=filtered_data.get("wx_nickname"),
+                wx_openid=filtered_data.get("wx_openid"),
+                tags=filtered_data.get("tags", []),
+                status="pending",
+            )
+            session.add(post)
+            session.commit()
+
+            logger.info(f"手动创建投稿成功，ID: {post.id}")
+            return jsonify({
+                "status": "success",
+                "message": "投稿创建成功",
+                "post": post.to_dict()
+            }), 200
+
+        except Exception as e:
+            logger.error(f"创建投稿失败: {str(e)}", exc_info=True)
             return jsonify({"error": str(e)}), 500
 
     @app.route("/webhook/questionnaire", methods=["POST"])
@@ -530,13 +701,20 @@ def main():
     port = app_config.get("port", 5000)
     debug = app_config.get("debug", False)
 
+    from src.scheduler import start_scheduler
+    start_scheduler()
+
     print(f"[启动] 校园墙同步服务正在启动...")
     print(f"[启动] 监听地址: http://{host}:{port}")
     print(f"[启动] tduck Webhook: http://{host}:{port}/webhook/tduck")
     print(f"[启动] 健康检查: http://{host}:{port}/health")
     print(f"[启动] 投稿列表: http://{host}:{port}/api/posts")
 
-    app.run(host=host, port=port, debug=debug)
+    try:
+        app.run(host=host, port=port, debug=debug)
+    finally:
+        from src.scheduler import stop_scheduler
+        stop_scheduler()
 
 
 if __name__ == "__main__":

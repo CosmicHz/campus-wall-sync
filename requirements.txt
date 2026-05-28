@@ -13,6 +13,9 @@ PyYAML>=6.0
 # 数据库
 SQLAlchemy>=2.0.0
 
+# 定时任务
+APScheduler>=3.10.0
+
 # 可选：AI审核（如果需要）
 # openai>=1.0.0
 

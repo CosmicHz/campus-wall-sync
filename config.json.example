@@ -5,48 +5,46 @@
         "debug": false,
         "host": "0.0.0.0",
         "port": 5000,
-        "log_level": "INFO",
-        "_comment": "Flask 应用配置"
+        "log_level": "INFO"
     },
 
     "database": {
         "path": "data/campus_wall.db",
-        "echo": false,
-        "_comment": "SQLite 数据库配置，path 为数据库文件路径"
+        "echo": false
     },
 
     "halo": {
+        "enabled": false,
         "api_url": "https://your-halo-site.com",
         "api_token": "YOUR_API_TOKEN_HERE",
         "site_name": "campus-blog",
         "timeout": 30,
-        "default_category": "表白墙",
-        "default_tags": ["投稿", "校园墙"],
-        "_comment": "Halo 博客 API 配置，用于同步投稿到博客"
+        "default_category": "",
+        "default_tags": []
     },
 
     "tduck": {
         "enabled": true,
         "api_key": "YOUR-TDUCK-API-KEY",
         "base_url": "https://x.tduckcloud.com",
-        "_comment": "tduck 表单平台配置",
         "field_ids": {
             "class": "input1773416359370",
             "name": "input1773416363353",
-            "content": "textarea1773416364971",
-            "_comment": "表单字段 ID 映射，可通过 /api/tduck/fields 查看"
+            "content": "textarea1773416364971"
+        },
+        "sync": {
+            "enabled": true,
+            "interval_minutes": 5
         }
     },
 
     "review": {
         "enable_ai_review": false,
         "ai_review_type": "openai",
-        "openai_api_key": "YOUR-OPENAI-API-KEY",
-        "_comment": "内容审核配置，enable_ai_review 为 true 时启用 AI 审核"
+        "openai_api_key": "YOUR-OPENAI-API-KEY"
     },
 
     "content_filter": {
-        "replace_mode": true,
-        "_comment": "敏感词过滤模式：true=替换为***后通过，false=直接拒绝"
+        "replace_mode": true
     }
 }
