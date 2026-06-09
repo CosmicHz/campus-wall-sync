@@ -13,8 +13,9 @@ Flask 主入口
 """
 
 import logging
+import os
 from datetime import datetime
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from src.config import config
 from src.services.tduck_client import TduckClient
 from src.services.halo_client import HaloClient
@@ -37,17 +38,51 @@ def create_app() -> Flask:
     app.config["HOST"] = app_config.get("host", "0.0.0.0")
     app.config["PORT"] = app_config.get("port", 5000)
 
+    app.url_map.strict_slashes = False
+
     setup_logger(app_config.get("log_level", "INFO"))
     logger = logging.getLogger(__name__)
 
     init_db()
 
+    # ========== 请求日志中间件 ==========
+    @app.before_request
+    def log_request():
+        """记录每个请求"""
+        logger.info(
+            f"请求: {request.method} {request.path} "
+            f"来自: {request.remote_addr}"
+        )
+
+    @app.after_request
+    def log_response(response):
+        """记录响应状态"""
+        logger.info(
+            f"响应: {request.method} {request.path} "
+            f"状态: {response.status_code}"
+        )
+        return response
+
+    # ========== 客户端初始化 ==========
     tduck_client = TduckClient()
     
     halo_enabled = config.halo.get("enabled", False)
     halo_client = HaloClient() if halo_enabled else None
     if not halo_enabled:
         logger.info("Halo 同步已禁用（config.json 中 halo.enabled = false）")
+
+    # 管理后台静态文件托管
+    admin_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "admin")
+
+    @app.route("/admin/")
+    def admin_index():
+        """管理后台首页"""
+        return send_from_directory(admin_dir, "index.html")
+
+    @app.route("/admin/<path:filename>")
+    def admin_static(filename):
+        """管理后台静态文件"""
+        return send_from_directory(admin_dir, filename)
 
     @app.route("/health", methods=["GET"])
     def health_check():
@@ -602,6 +637,78 @@ def create_app() -> Flask:
             logger.error(f"手动同步失败: {str(e)}", exc_info=True)
             return jsonify({"error": str(e)}), 500
 
+    @app.route("/api/config/reload", methods=["POST"])
+    def reload_config():
+        """
+        热更新配置
+
+        重新加载 config.json 文件，无需重启服务即可更新：
+        - tduck API Key
+        - Halo API Token
+        - 其他配置项
+
+        使用方法：
+        1. 修改 config.json 文件
+        2. 调用 POST /api/config/reload
+        3. 新配置立即生效
+
+        注意：
+        - 数据库路径更改需要重启服务
+        - app.host 和 app.port 更改需要重启服务
+        """
+        try:
+            success = config.reload()
+            if success:
+                logger.info("配置热更新成功")
+                return jsonify({
+                    "status": "success",
+                    "message": "配置已重新加载",
+                    "config_path": config.get_config_path(),
+                    "hint": "以下配置已更新：tduck.api_key, halo.api_token 等"
+                })
+            else:
+                return jsonify({
+                    "status": "error",
+                    "message": "配置重新加载失败"
+                }), 500
+        except Exception as e:
+            logger.error(f"配置热更新失败: {str(e)}", exc_info=True)
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/api/config/info", methods=["GET"])
+    def get_config_info():
+        """
+        获取当前配置信息
+
+        返回配置文件路径和主要配置项（不返回敏感信息）
+        """
+        try:
+            return jsonify({
+                "status": "success",
+                "config_path": config.get_config_path(),
+                "tduck": {
+                    "enabled": config.tduck.get("enabled", False),
+                    "base_url": config.tduck.get("base_url"),
+                    "has_api_key": bool(config.tduck.get("api_key")),
+                    "sync_enabled": config.tduck.get("sync", {}).get("enabled", False),
+                    "sync_interval": config.tduck.get("sync", {}).get("interval_minutes", 5)
+                },
+                "halo": {
+                    "enabled": config.halo.get("enabled", False),
+                    "api_url": config.halo.get("api_url"),
+                    "has_api_token": bool(config.halo.get("api_token"))
+                },
+                "review": {
+                    "enable_ai_review": config.review.get("enable_ai_review", False),
+                    "ai_review_type": config.review.get("ai_review_type")
+                },
+                "content_filter": {
+                    "replace_mode": config.content_filter.get("replace_mode", True)
+                }
+            })
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
     @app.route("/api/posts/create", methods=["POST"])
     def create_post_manually():
         """
@@ -706,6 +813,7 @@ def main():
 
     print(f"[启动] 校园墙同步服务正在启动...")
     print(f"[启动] 监听地址: http://{host}:{port}")
+    print(f"[启动] 管理后台: http://{host}:{port}/admin/")
     print(f"[启动] tduck Webhook: http://{host}:{port}/webhook/tduck")
     print(f"[启动] 健康检查: http://{host}:{port}/health")
     print(f"[启动] 投稿列表: http://{host}:{port}/api/posts")

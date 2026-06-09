@@ -14,13 +14,14 @@ src/
 │   └── ai_review.py              # AI 内容审核
 ├── services/           # 外部服务客户端
 │   ├── tduck_client.py           # tduck API 客户端
-│   ├── halo_client.py            # Halo 博客 API 客户端
-│   └── questionnaire.py          # 问卷服务封装
+│   └── halo_client.py            # Halo 博客 API 客户端
 ├── utils/              # 工具模块
+│   └── logger.py                 # 日志配置
 ├── app.py              # Flask 主入口
 ├── config.py           # 配置管理
 ├── database.py         # 数据库连接
-└── models.py           # 数据模型
+├── models.py           # 数据模型
+└── scheduler.py        # 定时任务调度
 ```
 
 ---
@@ -93,23 +94,26 @@ def to_dict(self):
 
 ### 场景二：修改表单字段映射
 
-**修改文件：** [questionnaire_parser.py](src/hooks/questionnaire_parser.py)
+**修改文件：** [config.json](config.json)
 
-```python
-# ========================================
-# tduck 字段映射配置
-# ========================================
+字段 ID 现在从配置文件读取，无需修改代码：
 
-FIELD_CLASS = "input1773416359370"      # 班级字段ID
-FIELD_NAME = "input1773416363353"       # 姓名字段ID
-FIELD_CONTENT = "textarea1773416364971" # 投稿内容字段ID
+```json
+{
+    "tduck": {
+        "field_ids": {
+            "class": "input1773416359370",
+            "name": "input1773416363353",
+            "content": "textarea1773416364971"
+        }
+    }
+}
 ```
 
 **如何获取字段 ID：**
 
-1. 访问 tduck 表单设计器
-2. 查看字段属性，复制字段 ID
-3. 或使用 API 获取：`GET /tduck-api/sync/form/fields`
+1. 启动服务后访问：`GET http://localhost:5000/api/tduck/fields`
+2. 或在 tduck 表单设计器中查看字段属性
 
 ---
 
@@ -147,6 +151,58 @@ def to_markdown(self) -> str:
     
     return f"{meta}\n\n---\n\n{self.content}\n\n---\n\n{footer}"
 ```
+
+---
+
+### 场景五：配置热更新（无需重启服务）
+
+**适用场景：** 需要更新 API Key、Token 等敏感配置，但不想重启服务。
+
+**支持的配置项：**
+- `tduck.api_key` - tduck API 密钥
+- `halo.api_token` - Halo API Token
+- `review.*` - 审核配置
+- `content_filter.*` - 内容过滤配置
+- `tduck.field_ids.*` - 表单字段映射
+
+**不支持热更新的配置（需要重启）：**
+- `database.path` - 数据库路径
+- `app.host` / `app.port` - 服务地址和端口
+
+**使用方法：**
+
+```bash
+# 1. 修改 config.json 文件
+nano config.json
+#notepad config.json
+
+# 2. 调用 API 热更新
+curl -X POST http://localhost:5000/api/config/reload
+
+# 响应示例：
+# {
+#   "status": "success",
+#   "message": "配置已重新加载",
+#   "config_path": "/path/to/config.json"
+# }
+
+# 3. 查看当前配置（不含敏感信息）
+curl http://localhost:5000/api/config/info
+```
+
+**代码实现原理：**
+
+客户端（`TduckClient`、`HaloClient`）使用 `@property` 动态获取配置：
+
+```python
+class TduckClient:
+    @property
+    def api_key(self) -> str:
+        """每次从 config 读取最新值"""
+        return config.tduck.get("api_key", "")
+```
+
+这样每次 API 请求都会使用最新的配置值，无需重启服务。
 
 ---
 
@@ -236,14 +292,20 @@ def my_function(param1: str, param2: int) -> Dict[str, Any]:
 - 新增解析逻辑
 - 新增数据库字段
 - 修改核心业务流程
+- 新增 API 客户端方法
 
 ### 测试文件位置
 
 ```
 tests/
-├── test_database.py              # 数据库测试
-├── test_questionnaire_parser.py  # 表单解析测试
-└── test_content_filter.py        # 敏感词过滤测试（新增）
+├── conftest.py                    # 共享 fixtures（推荐添加）
+├── test_database.py               # 数据库测试
+├── test_questionnaire_parser.py   # 表单解析测试
+├── test_content_filter.py         # 敏感词过滤测试
+├── test_ai_review.py              # AI 审核测试
+├── test_tduck_client.py           # tduck API 客户端测试
+├── test_halo_client.py            # Halo API 客户端测试
+└── test_config.py                 # 配置管理测试
 ```
 
 ### 测试命名规范
@@ -261,6 +323,65 @@ def test_parse_real_webhook_data():
 def test_author_property_priority():
     """测试 author 属性的优先级"""
     pass
+```
+
+### 使用 pytest fixtures
+
+推荐创建 `tests/conftest.py` 共享 fixtures：
+
+```python
+import pytest
+import tempfile
+import os
+import json
+
+@pytest.fixture
+def temp_db():
+    """临时数据库 fixture"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = os.path.join(tmpdir, "test.db")
+        config_path = os.path.join(tmpdir, "config.json")
+        with open(config_path, "w") as f:
+            json.dump({"database": {"path": db_path}}, f)
+        os.environ["CONFIG_PATH"] = config_path
+        yield db_path
+        if "CONFIG_PATH" in os.environ:
+            del os.environ["CONFIG_PATH"]
+```
+
+### 使用 mock 测试 API 客户端
+
+测试外部 API 时使用 `unittest.mock`：
+
+```python
+from unittest.mock import patch, Mock
+
+@patch("requests.get")
+def test_tduck_get_form_fields(mock_get):
+    """测试获取表单字段"""
+    mock_get.return_value = Mock(
+        status_code=200,
+        json=lambda: {"code": 200, "data": {"fields": [...]}
+    )
+    
+    client = TduckClient()
+    fields = client.get_form_fields()
+    
+    assert len(fields) > 0
+    mock_get.assert_called_once()
+```
+
+### 运行测试
+
+```bash
+# 运行所有测试
+pytest tests/ -v
+
+# 运行特定测试文件
+pytest tests/test_content_filter.py -v
+
+# 运行并显示覆盖率
+pytest tests/ -v --cov=src --cov-report=term-missing
 ```
 
 ---
@@ -298,6 +419,33 @@ sqlite3 data/campus_wall.db
 
 # 或安装 DB Browser for SQLite（图形界面）
 ```
+
+### Q: 如何在不重启服务的情况下更新 API Key？
+
+**A:** 使用配置热更新功能：
+
+```bash
+# 1. 修改 config.json 中的 api_key
+nano config.json
+#notepad config.json
+
+# 2. 调用热更新 API
+curl -X POST http://localhost:5000/api/config/reload
+
+# 3. 新配置立即生效，无需重启
+```
+
+**注意：** 数据库路径和服务端口更改仍需重启服务。
+
+### Q: 热更新失败怎么办？
+
+**A:** 检查以下几点：
+
+1. **JSON 格式是否正确** - 使用 `python -m json.tool config.json` 验证
+2. **配置文件是否存在** - 确保 `config.json` 在正确位置
+3. **查看日志** - 检查服务日志中的错误信息
+
+如果热更新失败，原配置仍然有效，服务不会中断。
 
 ---
 

@@ -6,7 +6,19 @@ Tduck 表单 API 客户端
 - 全量数据同步 API: /tduck-api/sync/form/data
 - Webhook 数据验证
 
-API 文档参考: https://x.tduckcloud.com/tduck-api/
+支持热更新（无需重启服务）：
+- 所有配置项使用 @property 动态获取
+- 修改 config.json 后调用 POST /api/config/reload 即可生效
+- 支持热更新的配置：api_key, base_url, timeout, field_ids
+
+使用方法：
+    # 1. 修改 config.json 中的 tduck.api_key
+    nano config.json
+    
+    # 2. 调用热更新 API
+    curl -X POST http://localhost:5000/api/config/reload
+    
+    # 3. 新 API Key 立即生效，无需重启服务
 """
 
 import logging
@@ -21,20 +33,28 @@ class TduckClient:
 
     使用 tduck 的数据同步 API 进行表单数据管理。
     配置信息从 config.json 的 tduck 部分读取。
+    
+    支持热更新：每次请求时获取最新配置值
     """
 
     def __init__(self):
-        """从配置初始化 tduck 客户端"""
-        tduck_config = config.tduck
-
-        # API 配置
-        self.base_url = tduck_config.get("base_url", "https://x.tduckcloud.com")
-        self.api_key = tduck_config.get("api_key", "")
-
-        # 请求超时设置
-        self.timeout = tduck_config.get("timeout", 30)
-
+        """初始化 tduck 客户端（不缓存配置）"""
         self.logger = logging.getLogger(__name__)
+
+    @property
+    def base_url(self) -> str:
+        """获取 base_url（每次从 config 读取）"""
+        return config.tduck.get("base_url", "https://x.tduckcloud.com")
+
+    @property
+    def api_key(self) -> str:
+        """获取 api_key（每次从 config 读取）"""
+        return config.tduck.get("api_key", "")
+
+    @property
+    def timeout(self) -> int:
+        """获取 timeout（每次从 config 读取）"""
+        return config.tduck.get("timeout", 30)
 
     def _make_request(
         self,

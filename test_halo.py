@@ -10,7 +10,7 @@
 5. 同步到 Halo
 
 使用方法：
-    python test_production.py
+    python test_halo.py
 """
 
 import requests

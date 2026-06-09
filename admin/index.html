@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>校园墙管理后台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: { 50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a' },
+                        sidebar: '#0f172a',
+                        sidebarHover: '#1e293b'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .sidebar-item.active { background: linear-gradient(90deg, rgba(59,130,246,0.2) 0%, transparent 100%); border-left: 3px solid #3b82f6; }
+        .glass-card { background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); }
+        .dark .glass-card { background: rgba(30,41,59,0.95); }
+        .prose p { margin-bottom: 0.5em; }
+        .prose p:last-child { margin-bottom: 0; }
+        .prose a { color: #2563eb; text-decoration: underline; }
+        .prose img { max-width: 100%; height: auto; border-radius: 0.5rem; }
+        .prose table { width: 100%; border-collapse: collapse; }
+        .prose th, .prose td { border: 1px solid #e2e8f0; padding: 0.5rem; }
+        .prose th { background: #f8fafc; }
+        .prose blockquote { border-left: 4px solid #cbd5e1; padding-left: 1rem; color: #475569; }
+        .prose pre { background: #f8fafc; padding: 0.75rem; border-radius: 0.5rem; overflow-x: auto; }
+        .prose code { background: #f1f5f9; padding: 0.125rem 0.375rem; border-radius: 0.25rem; font-size: 0.875em; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased">
+    <div id="app" class="flex h-screen overflow-hidden">
+        <!-- Sidebar -->
+        <aside class="w-64 bg-sidebar text-white flex flex-col flex-shrink-0 transition-all duration-300" id="sidebar">
+            <div class="p-6 border-b border-slate-700">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-primary-500 rounded-xl flex items-center justify-center shadow-lg shadow-primary-500/30">
+                        <i class="fas fa-university text-lg"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-lg leading-tight">校园墙</h1>
+                        <p class="text-xs text-slate-400">管理后台</p>
+                    </div>
+                </div>
+            </div>
+            <nav class="flex-1 overflow-y-auto py-4 space-y-1" id="sidebar-nav">
+                <a href="#dashboard" data-page="dashboard" class="sidebar-item flex items-center gap-3 px-6 py-3 text-slate-300 hover:text-white hover:bg-sidebarHover transition-all">
+                    <i class="fas fa-chart-line w-5 text-center"></i>
+                    <span>仪表盘</span>
+                </a>
+                <a href="#posts" data-page="posts" class="sidebar-item flex items-center gap-3 px-6 py-3 text-slate-300 hover:text-white hover:bg-sidebarHover transition-all">
+                    <i class="fas fa-file-alt w-5 text-center"></i>
+                    <span>投稿管理</span>
+                    <span id="pending-badge" class="ml-auto bg-amber-500 text-white text-xs px-2 py-0.5 rounded-full hidden">0</span>
+                </a>
+                <a href="#sync" data-page="sync" class="sidebar-item flex items-center gap-3 px-6 py-3 text-slate-300 hover:text-white hover:bg-sidebarHover transition-all">
+                    <i class="fas fa-sync w-5 text-center"></i>
+                    <span>同步管理</span>
+                </a>
+                <a href="#tests" data-page="tests" class="sidebar-item flex items-center gap-3 px-6 py-3 text-slate-300 hover:text-white hover:bg-sidebarHover transition-all">
+                    <i class="fas fa-vial w-5 text-center"></i>
+                    <span>系统测试</span>
+                </a>
+                <a href="#config" data-page="config" class="sidebar-item flex items-center gap-3 px-6 py-3 text-slate-300 hover:text-white hover:bg-sidebarHover transition-all">
+                    <i class="fas fa-cog w-5 text-center"></i>
+                    <span>配置管理</span>
+                </a>
+            </nav>
+            <div class="p-4 border-t border-slate-700">
+                <div class="flex items-center gap-3 px-2">
+                    <div class="w-8 h-8 bg-slate-700 rounded-full flex items-center justify-center">
+                        <i class="fas fa-user text-sm text-slate-400"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium truncate">管理员</p>
+                        <p class="text-xs text-slate-400 truncate" id="api-status">API: 检测中...</p>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 flex flex-col overflow-hidden">
+            <!-- Top Header -->
+            <header class="bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between flex-shrink-0">
+                <div class="flex items-center gap-4">
+                    <button id="toggle-sidebar" class="lg:hidden p-2 hover:bg-slate-100 rounded-lg transition-colors">
+                        <i class="fas fa-bars text-slate-600"></i>
+                    </button>
+                    <h2 id="page-title" class="text-xl font-bold text-slate-800">仪表盘</h2>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button onclick="refreshCurrentPage()" class="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-600" title="刷新">
+                        <i class="fas fa-redo-alt"></i>
+                    </button>
+                    <div class="h-6 w-px bg-slate-200"></div>
+                    <span class="text-sm text-slate-500" id="current-time"></span>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <div id="content-area" class="flex-1 overflow-y-auto p-8">
+                <!-- Dashboard Page -->
+                <div id="page-dashboard" class="page fade-in">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                        <div class="glass-card rounded-2xl p-6 shadow-sm border border-slate-200">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center">
+                                    <i class="fas fa-file-alt text-blue-600 text-xl"></i>
+                                </div>
+                                <span class="text-xs font-medium text-slate-400">总投稿</span>
+                            </div>
+                            <p class="text-3xl font-bold text-slate-800" id="stat-total">-</p>
+                            <p class="text-sm text-slate-500 mt-1">累计接收投稿</p>
+                        </div>
+                        <div class="glass-card rounded-2xl p-6 shadow-sm border border-slate-200">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center">
+                                    <i class="fas fa-clock text-amber-600 text-xl"></i>
+                                </div>
+                                <span class="text-xs font-medium text-slate-400">待同步</span>
+                            </div>
+                            <p class="text-3xl font-bold text-amber-600" id="stat-pending">-</p>
+                            <p class="text-sm text-slate-500 mt-1">等待同步到 Halo</p>
+                        </div>
+                        <div class="glass-card rounded-2xl p-6 shadow-sm border border-slate-200">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center">
+                                    <i class="fas fa-check-circle text-emerald-600 text-xl"></i>
+                                </div>
+                                <span class="text-xs font-medium text-slate-400">已同步</span>
+                            </div>
+                            <p class="text-3xl font-bold text-emerald-600" id="stat-synced">-</p>
+                            <p class="text-sm text-slate-500 mt-1">已发布到 Halo</p>
+                        </div>
+                        <div class="glass-card rounded-2xl p-6 shadow-sm border border-slate-200">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center">
+                                    <i class="fas fa-times-circle text-red-600 text-xl"></i>
+                                </div>
+                                <span class="text-xs font-medium text-slate-400">已拒绝</span>
+                            </div>
+                            <p class="text-3xl font-bold text-red-600" id="stat-rejected">-</p>
+                            <p class="text-sm text-slate-500 mt-1">审核未通过</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="glass-card rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                                <h3 class="font-bold text-slate-800">最近投稿</h3>
+                                <a href="#posts" data-page="posts" class="text-sm text-primary-600 hover:text-primary-700 font-medium">查看全部</a>
+                            </div>
+                            <div id="recent-posts" class="divide-y divide-slate-100">
+                                <div class="p-6 text-center text-slate-400">加载中...</div>
+                            </div>
+                        </div>
+                        <div class="glass-card rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                                <h3 class="font-bold text-slate-800">系统状态</h3>
+                                <span id="scheduler-indicator" class="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-600">检测中</span>
+                            </div>
+                            <div class="p-6 space-y-4">
+                                <div class="flex items-center justify-between py-2">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center">
+                                            <i class="fas fa-heartbeat text-slate-600 text-sm"></i>
+                                        </div>
+                                        <span class="text-sm text-slate-700">服务健康</span>
+                                    </div>
+                                    <span id="health-status" class="text-sm font-medium">检测中</span>
+                                </div>
+                                <div class="flex items-center justify-between py-2">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center">
+                                            <i class="fas fa-database text-slate-600 text-sm"></i>
+                                        </div>
+                                        <span class="text-sm text-slate-700">数据库</span>
+                                    </div>
+                                    <span class="text-sm font-medium text-emerald-600">正常</span>
+                                </div>
+                                <div class="flex items-center justify-between py-2">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center">
+                                            <i class="fas fa-link text-slate-600 text-sm"></i>
+                                        </div>
+                                        <span class="text-sm text-slate-700">tduck API</span>
+                                    </div>
+                                    <span id="tduck-status" class="text-sm font-medium">检测中</span>
+                                </div>
+                                <div class="flex items-center justify-between py-2">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center">
+                                            <i class="fab fa-wordpress text-slate-600 text-sm"></i>
+                                        </div>
+                                        <span class="text-sm text-slate-700">Halo 博客</span>
+                                    </div>
+                                    <span id="halo-status" class="text-sm font-medium">检测中</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Posts Page -->
+                <div id="page-posts" class="page hidden fade-in">
+                    <div class="glass-card rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="px-6 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4">
+                            <div class="flex items-center gap-3">
+                                <h3 class="font-bold text-slate-800">投稿列表</h3>
+                                <div class="flex bg-slate-100 rounded-lg p-1">
+                                    <button onclick="filterPosts('all')" class="filter-btn px-3 py-1.5 text-sm rounded-md transition-all bg-white shadow-sm text-slate-800 font-medium" data-filter="all">全部</button>
+                                    <button onclick="filterPosts('pending')" class="filter-btn px-3 py-1.5 text-sm rounded-md transition-all text-slate-600 hover:text-slate-800" data-filter="pending">待同步</button>
+                                    <button onclick="filterPosts('synced')" class="filter-btn px-3 py-1.5 text-sm rounded-md transition-all text-slate-600 hover:text-slate-800" data-filter="synced">已同步</button>
+                                    <button onclick="filterPosts('rejected')" class="filter-btn px-3 py-1.5 text-sm rounded-md transition-all text-slate-600 hover:text-slate-800" data-filter="rejected">已拒绝</button>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button onclick="syncSelected()" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium flex items-center gap-2">
+                                    <i class="fas fa-sync-alt"></i> 同步选中
+                                </button>
+                                <button onclick="loadPosts()" class="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-600">
+                                    <i class="fas fa-redo-alt"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead class="bg-slate-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left"><input type="checkbox" id="select-all" class="rounded border-slate-300" onchange="toggleSelectAll()"></th>
+                                        <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">ID</th>
+                                        <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">标题</th>
+                                        <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">作者</th>
+                                        <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">班级</th>
+                                        <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">状态</th>
+                                        <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">时间</th>
+                                        <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="posts-table-body" class="divide-y divide-slate-100">
+                                    <tr><td colspan="8" class="px-6 py-8 text-center text-slate-400">加载中...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
+                            <span class="text-sm text-slate-500" id="posts-pagination-info">共 0 条</span>
+                            <div class="flex items-center gap-2" id="posts-pagination">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sync Page -->
+                <div id="page-sync" class="page hidden fade-in">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="glass-card rounded-2xl shadow-sm border border-slate-200 p-6">
+                            <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                <i class="fas fa-cloud-upload-alt text-primary-600"></i> 同步到 Halo
+                            </h3>
+                            <p class="text-sm text-slate-500 mb-6">将待同步的投稿发布到 Halo 博客。支持单条创建或合并多篇投稿。</p>
+                            <div class="space-y-3">
+                                <button onclick="syncToHalo('new')" class="w-full px-4 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium flex items-center justify-center gap-2">
+                                    <i class="fas fa-file-export"></i> 每条投稿创建新文章
+                                </button>
+                                <button onclick="syncToHalo('append')" class="w-full px-4 py-3 bg-white border-2 border-primary-600 text-primary-600 rounded-xl hover:bg-primary-50 transition-colors font-medium flex items-center justify-center gap-2">
+                                    <i class="fas fa-layer-group"></i> 合并到一篇文章
+                                </button>
+                            </div>
+                            <div id="sync-result" class="mt-4 hidden"></div>
+                        </div>
+                        <div class="glass-card rounded-2xl shadow-sm border border-slate-200 p-6">
+                            <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                <i class="fas fa-download text-emerald-600"></i> 从 tduck 同步
+                            </h3>
+                            <p class="text-sm text-slate-500 mb-6">手动从 tduck API 拉取最新表单数据并存入数据库。</p>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-1">开始时间（可选）</label>
+                                    <input type="datetime-local" id="sync-start-time" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-1">结束时间（可选）</label>
+                                    <input type="datetime-local" id="sync-end-time" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none">
+                                </div>
+                                <button onclick="syncFromTduck()" class="w-full px-4 py-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors font-medium flex items-center justify-center gap-2">
+                                    <i class="fas fa-play"></i> 立即同步
+                                </button>
+                            </div>
+                            <div id="tduck-sync-result" class="mt-4 hidden"></div>
+                        </div>
+                        <div class="glass-card rounded-2xl shadow-sm border border-slate-200 p-6 lg:col-span-2">
+                            <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                <i class="fas fa-clock text-amber-600"></i> 定时任务
+                            </h3>
+                            <div class="flex items-center justify-between py-3 border-b border-slate-100">
+                                <div>
+                                    <p class="font-medium text-slate-800">自动同步</p>
+                                    <p class="text-sm text-slate-500">每 5 分钟自动从 tduck 拉取数据</p>
+                                </div>
+                                <button onclick="runScheduler()" class="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm font-medium">
+                                    立即执行一次
+                                </button>
+                            </div>
+                            <div id="scheduler-info" class="mt-4 text-sm text-slate-500"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tests Page -->
+                <div id="page-tests" class="page hidden fade-in">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div class="glass-card rounded-2xl shadow-sm border border-slate-200 p-6">
+                            <div class="flex items-center gap-3 mb-4">
+                                <div class="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
+                                    <i class="fas fa-heartbeat text-blue-600"></i>
+                                </div>
+                                <div>
+                                    <h3 class="font-bold text-slate-800">健康检查</h3>
+                                    <p class="text-xs text-slate-500">/health</p>
+                                </div>
+                            </div>
+                            <button onclick="testApi('health')" class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium">测试</button>
+                            <pre id="result-health" class="mt-3 p-3 bg-slate-50 rounded-lg text-xs overflow-x-auto hidden"></pre>
+                        </div>
+                        <div class="glass-card rounded-2xl shadow-sm border border-slate-200 p-6">
+                            <div class="flex items-center gap-3 mb-4">
+                                <div class="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center">
+                                    <i class="fas fa-link text-purple-600"></i>
+                                </div>
+                                <div>
+                                    <h3 class="font-bold text-slate-800">tduck 连接</h3>
+                                    <p class="text-xs text-slate-500">/test/tduck</p>
+                                </div>
+                            </div>
+                            <button onclick="testApi('tduck')" class="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium">测试</button>
+                            <pre id="result-tduck" class="mt-3 p-3 bg-slate-50 rounded-lg text-xs overflow-x-auto hidden"></pre>
+                        </div>
+                        <div class="glass-card rounded-2xl shadow-sm border border-slate-200 p-6">
+                            <div class="flex items-center gap-3 mb-4">
+                                <div class="w-10 h-10 bg-orange-50 rounded-lg flex items-center justify-center">
+                                    <i class="fab fa-wordpress text-orange-600"></i>
+                                </div>
+                                <div>
+                                    <h3 class="font-bold text-slate-800">Halo 连接</h3>
+                                    <p class="text-xs text-slate-500">/test/halo</p>
+                                </div>
+                            </div>
+                            <button onclick="testApi('halo')" class="w-full px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium">测试</button>
+                            <pre id="result-halo" class="mt-3 p-3 bg-slate-50 rounded-lg text-xs overflow-x-auto hidden"></pre>
+                        </div>
+                        <div class="glass-card rounded-2xl shadow-sm border border-slate-200 p-6">
+                            <div class="flex items-center gap-3 mb-4">
+                                <div class="w-10 h-10 bg-pink-50 rounded-lg flex items-center justify-center">
+                                    <i class="fas fa-folder text-pink-600"></i>
+                                </div>
+                                <div>
+                                    <h3 class="font-bold text-slate-800">Halo 分类</h3>
+                                    <p class="text-xs text-slate-500">/test/halo/categories</p>
+                                </div>
+                            </div>
+                            <button onclick="testApi('categories')" class="w-full px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 transition-colors text-sm font-medium">获取</button>
+                            <pre id="result-categories" class="mt-3 p-3 bg-slate-50 rounded-lg text-xs overflow-x-auto hidden"></pre>
+                        </div>
+                        <div class="glass-card rounded-2xl shadow-sm border border-slate-200 p-6">
+                            <div class="flex items-center gap-3 mb-4">
+                                <div class="w-10 h-10 bg-teal-50 rounded-lg flex items-center justify-center">
+                                    <i class="fas fa-tags text-teal-600"></i>
+                                </div>
+                                <div>
+                                    <h3 class="font-bold text-slate-800">Halo 标签</h3>
+                                    <p class="text-xs text-slate-500">/test/halo/tags</p>
+                                </div>
+                            </div>
+                            <button onclick="testApi('tags')" class="w-full px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-sm font-medium">获取</button>
+                            <pre id="result-tags" class="mt-3 p-3 bg-slate-50 rounded-lg text-xs overflow-x-auto hidden"></pre>
+                        </div>
+                        <div class="glass-card rounded-2xl shadow-sm border border-slate-200 p-6">
+                            <div class="flex items-center gap-3 mb-4">
+                                <div class="w-10 h-10 bg-indigo-50 rounded-lg flex items-center justify-center">
+                                    <i class="fas fa-list-alt text-indigo-600"></i>
+                                </div>
+                                <div>
+                                    <h3 class="font-bold text-slate-800">表单字段</h3>
+                                    <p class="text-xs text-slate-500">/api/tduck/fields</p>
+                                </div>
+                            </div>
+                            <button onclick="testApi('fields')" class="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium">获取</button>
+                            <pre id="result-fields" class="mt-3 p-3 bg-slate-50 rounded-lg text-xs overflow-x-auto hidden"></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Config Page -->
+                <div id="page-config" class="page hidden fade-in">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="glass-card rounded-2xl shadow-sm border border-slate-200 p-6">
+                            <h3 class="font-bold text-slate-800 mb-4">前端 API 配置</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-1">API 基础地址</label>
+                                    <input type="text" id="api-base-url" value="" placeholder="留空表示同域" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none font-mono text-sm">
+                                    <p class="text-xs text-slate-500 mt-1">留空表示与当前页面同域（推荐），修改后点击保存刷新生效</p>
+                                </div>
+                                <button onclick="saveConfig()" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium">保存配置</button>
+                            </div>
+                        </div>
+                        <div class="glass-card rounded-2xl shadow-sm border border-slate-200 p-6">
+                            <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                <i class="fas fa-fire text-orange-500"></i> 配置热更新
+                            </h3>
+                            <p class="text-sm text-slate-500 mb-4">修改后端 config.json 后，无需重启服务即可热更新配置。</p>
+                            <button onclick="reloadConfig()" class="w-full px-4 py-3 bg-orange-600 text-white rounded-xl hover:bg-orange-700 transition-colors font-medium flex items-center justify-center gap-2">
+                                <i class="fas fa-sync-alt"></i> 热更新配置
+                            </button>
+                            <div id="reload-config-result" class="mt-4 hidden"></div>
+                            <div class="mt-4 text-xs text-slate-500 space-y-1">
+                                <p><strong>支持热更新：</strong> tduck.api_key, halo.api_token, tduck.field_ids, review.*, content_filter.*</p>
+                                <p><strong>需重启：</strong> database.path, app.host/port</p>
+                            </div>
+                        </div>
+                        <div class="glass-card rounded-2xl shadow-sm border border-slate-200 p-6 lg:col-span-2">
+                            <h3 class="font-bold text-slate-800 mb-4">当前后端配置</h3>
+                            <div class="flex items-center justify-between mb-4">
+                                <p class="text-sm text-slate-500">查看当前生效的后端配置（敏感信息已脱敏）</p>
+                                <button onclick="loadBackendConfig()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-sm text-slate-700 transition-colors">
+                                    <i class="fas fa-redo-alt mr-1"></i>刷新
+                                </button>
+                            </div>
+                            <pre id="backend-config-display" class="p-4 bg-slate-50 rounded-lg text-xs overflow-x-auto text-slate-700">点击刷新加载配置...</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Post Detail Modal -->
+    <div id="post-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-2xl">
+            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                <h3 class="font-bold text-slate-800">投稿详情</h3>
+                <button onclick="closeModal()" class="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+                    <i class="fas fa-times text-slate-400"></i>
+                </button>
+            </div>
+            <div id="post-modal-content" class="p-6 overflow-y-auto max-h-[60vh]">
+            </div>
+            <div class="px-6 py-4 border-t border-slate-100 flex justify-end gap-2">
+                <button onclick="closeModal()" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors text-sm">关闭</button>
+                <button id="modal-reject-btn" onclick="rejectCurrentPost()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm hidden">拒绝</button>
+                <button id="modal-sync-btn" onclick="syncCurrentPost()" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm hidden">同步到 Halo</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="fixed bottom-6 right-6 bg-slate-800 text-white px-4 py-3 rounded-xl shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 z-50 flex items-center gap-3">
+        <i id="toast-icon" class="fas fa-check-circle text-emerald-400"></i>
+        <span id="toast-message">操作成功</span>
+    </div>
+
+    <script>
+        // Config
+        const API_BASE = localStorage.getItem('api_base') || '';
+        let currentPage = 'dashboard';
+        let postsData = [];
+        let currentFilter = 'all';
+        let currentPostId = null;
+        let selectedPostIds = new Set();
+
+        // Init
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('api-base-url').value = API_BASE;
+            updateTime();
+            setInterval(updateTime, 1000);
+            initRouting();
+            checkApiStatus();
+            loadDashboard();
+        });
+
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('current-time').textContent = now.toLocaleString('zh-CN');
+        }
+
+        function initRouting() {
+            const hash = window.location.hash.slice(1) || 'dashboard';
+            navigateTo(hash);
+
+            window.addEventListener('hashchange', () => {
+                const page = window.location.hash.slice(1) || 'dashboard';
+                navigateTo(page);
+            });
+
+            document.querySelectorAll('#sidebar-nav a').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const page = link.dataset.page;
+                    window.location.hash = page;
+                });
+            });
+
+            document.getElementById('toggle-sidebar').addEventListener('click', () => {
+                document.getElementById('sidebar').classList.toggle('-translate-x-full');
+            });
+        }
+
+        function navigateTo(page) {
+            currentPage = page;
+            document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
+            document.getElementById(`page-${page}`)?.classList.remove('hidden');
+            document.querySelectorAll('.sidebar-item').forEach(item => item.classList.remove('active'));
+            document.querySelector(`[data-page="${page}"]`)?.classList.add('active');
+
+            const titles = {
+                dashboard: '仪表盘',
+                posts: '投稿管理',
+                sync: '同步管理',
+                tests: '系统测试',
+                config: '配置管理'
+            };
+            document.getElementById('page-title').textContent = titles[page] || '管理后台';
+
+            if (page === 'dashboard') loadDashboard();
+            if (page === 'posts') loadPosts();
+            if (page === 'sync') loadSchedulerStatus();
+            if (page === 'config') loadBackendConfig();
+        }
+
+        function refreshCurrentPage() {
+            navigateTo(currentPage);
+        }
+
+        // API Helpers
+        async function apiGet(path) {
+            const res = await fetch(`${API_BASE}${path}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json();
+        }
+
+        async function apiPost(path, body = null) {
+            const opts = { method: 'POST', headers: {} };
+            if (body) {
+                opts.headers['Content-Type'] = 'application/json';
+                opts.body = JSON.stringify(body);
+            }
+            const res = await fetch(`${API_BASE}${path}`, opts);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json();
+        }
+
+        // Dashboard
+        async function loadDashboard() {
+            try {
+                const data = await apiGet('/api/posts?page=1&size=1');
+                const total = data.total || 0;
+
+                let pending = 0, synced = 0, rejected = 0;
+                if (total > 0) {
+                    const all = await apiGet('/api/posts?page=1&size=' + Math.min(total, 1000));
+                    all.posts?.forEach(p => {
+                        if (p.status === 'pending') pending++;
+                        else if (p.status === 'synced') synced++;
+                        else if (p.status === 'rejected') rejected++;
+                    });
+                }
+
+                document.getElementById('stat-total').textContent = total;
+                document.getElementById('stat-pending').textContent = pending;
+                document.getElementById('stat-synced').textContent = synced;
+                document.getElementById('stat-rejected').textContent = rejected;
+
+                if (pending > 0) {
+                    document.getElementById('pending-badge').textContent = pending;
+                    document.getElementById('pending-badge').classList.remove('hidden');
+                }
+
+                const recent = await apiGet('/api/posts?page=1&size=5');
+                renderRecentPosts(recent.posts || []);
+            } catch (e) {
+                console.error('Dashboard load failed:', e);
+            }
+        }
+
+        function renderRecentPosts(posts) {
+            const container = document.getElementById('recent-posts');
+            if (!posts.length) {
+                container.innerHTML = '<div class="p-6 text-center text-slate-400">暂无投稿</div>';
+                return;
+            }
+            container.innerHTML = posts.map(p => `
+                <div class="px-6 py-4 hover:bg-slate-50 transition-colors cursor-pointer" onclick="showPostDetail(${p.id})">
+                    <div class="flex items-center justify-between">
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium text-slate-800 truncate">${escapeHtml(p.title)}</p>
+                            <p class="text-sm text-slate-500">${escapeHtml(p.author)} · ${p.class_name || '无班级'}</p>
+                        </div>
+                        <span class="ml-3 px-2 py-1 text-xs rounded-full ${getStatusClass(p.status)}">${getStatusText(p.status)}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Posts
+        let postsPage = 1;
+        let postsSize = 20;
+
+        async function loadPosts(page = 1) {
+            postsPage = page;
+            try {
+                const statusParam = currentFilter !== 'all' ? `&status=${currentFilter}` : '';
+                const data = await apiGet(`/api/posts?page=${page}&size=${postsSize}${statusParam}`);
+                postsData = data.posts || [];
+                renderPostsTable(postsData);
+                renderPagination(data.total || 0, page, postsSize);
+                document.getElementById('posts-pagination-info').textContent = `共 ${data.total || 0} 条`;
+            } catch (e) {
+                showToast('加载投稿失败: ' + e.message, 'error');
+            }
+        }
+
+        function renderPostsTable(posts) {
+            const tbody = document.getElementById('posts-table-body');
+            if (!posts.length) {
+                tbody.innerHTML = '<tr><td colspan="8" class="px-6 py-8 text-center text-slate-400">暂无数据</td></tr>';
+                return;
+            }
+            tbody.innerHTML = posts.map(p => `
+                <tr class="hover:bg-slate-50 transition-colors">
+                    <td class="px-6 py-4"><input type="checkbox" value="${p.id}" class="post-checkbox rounded border-slate-300" onchange="toggleSelect(${p.id})" ${selectedPostIds.has(p.id) ? 'checked' : ''}></td>
+                    <td class="px-6 py-4 text-sm text-slate-600">${p.id}</td>
+                    <td class="px-6 py-4">
+                        <p class="font-medium text-slate-800 cursor-pointer hover:text-primary-600" onclick="showPostDetail(${p.id})">${escapeHtml(p.title)}</p>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-slate-600">${escapeHtml(p.author)}</td>
+                    <td class="px-6 py-4 text-sm text-slate-600">${escapeHtml(p.class_name || '-')}</td>
+                    <td class="px-6 py-4"><span class="px-2 py-1 text-xs rounded-full ${getStatusClass(p.status)}">${getStatusText(p.status)}</span></td>
+                    <td class="px-6 py-4 text-sm text-slate-500">${formatDate(p.created_at)}</td>
+                    <td class="px-6 py-4">
+                        <div class="flex items-center gap-2">
+                            <button onclick="showPostDetail(${p.id})" class="p-1.5 hover:bg-slate-100 rounded text-slate-500" title="查看"><i class="fas fa-eye"></i></button>
+                            ${p.status === 'pending' ? `<button onclick="rejectPost(${p.id})" class="p-1.5 hover:bg-red-50 rounded text-red-500" title="拒绝"><i class="fas fa-times"></i></button>` : ''}
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function renderPagination(total, current, size) {
+            const totalPages = Math.ceil(total / size);
+            const container = document.getElementById('posts-pagination');
+            if (totalPages <= 1) { container.innerHTML = ''; return; }
+
+            let html = '';
+            if (current > 1) html += `<button onclick="loadPosts(${current - 1})" class="px-3 py-1.5 text-sm border border-slate-300 rounded-lg hover:bg-slate-50">上一页</button>`;
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === 1 || i === totalPages || (i >= current - 1 && i <= current + 1)) {
+                    html += `<button onclick="loadPosts(${i})" class="px-3 py-1.5 text-sm rounded-lg ${i === current ? 'bg-primary-600 text-white' : 'border border-slate-300 hover:bg-slate-50'}">${i}</button>`;
+                } else if (i === current - 2 || i === current + 2) {
+                    html += `<span class="px-2 text-slate-400">...</span>`;
+                }
+            }
+            if (current < totalPages) html += `<button onclick="loadPosts(${current + 1})" class="px-3 py-1.5 text-sm border border-slate-300 rounded-lg hover:bg-slate-50">下一页</button>`;
+            container.innerHTML = html;
+        }
+
+        function filterPosts(status) {
+            currentFilter = status;
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                if (btn.dataset.filter === status) {
+                    btn.classList.add('bg-white', 'shadow-sm', 'text-slate-800', 'font-medium');
+                    btn.classList.remove('text-slate-600');
+                } else {
+                    btn.classList.remove('bg-white', 'shadow-sm', 'text-slate-800', 'font-medium');
+                    btn.classList.add('text-slate-600');
+                }
+            });
+            loadPosts(1);
+        }
+
+        function toggleSelect(id) {
+            if (selectedPostIds.has(id)) selectedPostIds.delete(id);
+            else selectedPostIds.add(id);
+        }
+
+        function toggleSelectAll() {
+            const checked = document.getElementById('select-all').checked;
+            document.querySelectorAll('.post-checkbox').forEach(cb => {
+                cb.checked = checked;
+                const id = parseInt(cb.value);
+                if (checked) selectedPostIds.add(id);
+                else selectedPostIds.delete(id);
+            });
+        }
+
+        // Post Detail
+        async function showPostDetail(id) {
+            try {
+                const data = await apiGet(`/api/posts/${id}`);
+                const p = data.post;
+                currentPostId = id;
+                document.getElementById('post-modal-content').innerHTML = `
+                    <div class="space-y-4">
+                        <div class="flex items-center gap-3 mb-4">
+                            ${p.wx_avatar ? `<img src="${escapeHtml(p.wx_avatar)}" class="w-12 h-12 rounded-full">` : `<div class="w-12 h-12 bg-slate-200 rounded-full flex items-center justify-center"><i class="fas fa-user text-slate-400"></i></div>`}
+                            <div>
+                                <p class="font-bold text-slate-800">${escapeHtml(p.author)}</p>
+                                <p class="text-sm text-slate-500">${escapeHtml(p.class_name || '无班级')} · ${formatDate(p.created_at)}</p>
+                            </div>
+                            <span class="ml-auto px-3 py-1 text-sm rounded-full ${getStatusClass(p.status)}">${getStatusText(p.status)}</span>
+                        </div>
+                        <div class="bg-slate-50 rounded-xl p-4">
+                            <h4 class="font-bold text-slate-800 mb-2">${escapeHtml(p.title)}</h4>
+                            <div class="text-slate-700 prose prose-sm max-w-none">${sanitizeHtml(p.content)}</div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 text-sm">
+                            <div><span class="text-slate-500">tduck ID:</span> <span class="text-slate-800">${p.tduck_id || '-'}</span></div>
+                            <div><span class="text-slate-500">序号:</span> <span class="text-slate-800">${p.tduck_serial || '-'}</span></div>
+                            <div><span class="text-slate-500">提交时间:</span> <span class="text-slate-800">${p.submit_time || '-'}</span></div>
+                            <div><span class="text-slate-500">提交地点:</span> <span class="text-slate-800">${p.submit_address || '-'}</span></div>
+                            <div><span class="text-slate-500">微信昵称:</span> <span class="text-slate-800">${escapeHtml(p.wx_nickname || '-')}</span></div>
+                            <div><span class="text-slate-500">姓名:</span> <span class="text-slate-800">${escapeHtml(p.user_name || '-')}</span></div>
+                            ${p.halo_post_url ? `<div class="col-span-2"><span class="text-slate-500">Halo 链接:</span> <a href="${p.halo_post_url}" target="_blank" class="text-primary-600 hover:underline">${escapeHtml(p.halo_post_url)}</a></div>` : ''}
+                        </div>
+                    </div>
+                `;
+                document.getElementById('modal-reject-btn').classList.toggle('hidden', p.status !== 'pending');
+                document.getElementById('modal-sync-btn').classList.toggle('hidden', p.status !== 'pending');
+                document.getElementById('post-modal').classList.remove('hidden');
+                document.getElementById('post-modal').classList.add('flex');
+            } catch (e) {
+                showToast('加载详情失败: ' + e.message, 'error');
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('post-modal').classList.add('hidden');
+            document.getElementById('post-modal').classList.remove('flex');
+            currentPostId = null;
+        }
+
+        async function rejectPost(id) {
+            if (!confirm('确定要拒绝这条投稿吗？')) return;
+            try {
+                await apiPost(`/api/posts/${id}/reject`);
+                showToast('投稿已拒绝');
+                loadPosts(postsPage);
+                if (currentPage === 'dashboard') loadDashboard();
+            } catch (e) {
+                showToast('拒绝失败: ' + e.message, 'error');
+            }
+        }
+
+        async function rejectCurrentPost() {
+            if (currentPostId) await rejectPost(currentPostId);
+            closeModal();
+        }
+
+        async function syncCurrentPost() {
+            if (!currentPostId) return;
+            try {
+                const res = await apiPost('/api/posts/sync-to-halo', { post_ids: [currentPostId], mode: 'new' });
+                showToast(`同步完成: ${res.synced_count || 0} 条成功`);
+                closeModal();
+                loadPosts(postsPage);
+                if (currentPage === 'dashboard') loadDashboard();
+            } catch (e) {
+                showToast('同步失败: ' + e.message, 'error');
+            }
+        }
+
+        async function syncSelected() {
+            if (selectedPostIds.size === 0) { showToast('请先选择投稿', 'warning'); return; }
+            try {
+                const res = await apiPost('/api/posts/sync-to-halo', { post_ids: Array.from(selectedPostIds), mode: 'new' });
+                showToast(`同步完成: ${res.synced_count || 0} 条成功, ${res.error_count || 0} 条失败`);
+                selectedPostIds.clear();
+                document.getElementById('select-all').checked = false;
+                loadPosts(postsPage);
+                if (currentPage === 'dashboard') loadDashboard();
+            } catch (e) {
+                showToast('同步失败: ' + e.message, 'error');
+            }
+        }
+
+        // Sync
+        async function syncToHalo(mode) {
+            try {
+                const res = await apiPost('/api/posts/sync-to-halo', { mode });
+                const div = document.getElementById('sync-result');
+                div.classList.remove('hidden');
+                div.innerHTML = `<div class="p-4 bg-emerald-50 text-emerald-800 rounded-lg text-sm">${JSON.stringify(res, null, 2)}</div>`;
+                showToast(`同步完成: ${res.synced_count || 0} 条成功`);
+                if (currentPage === 'dashboard') loadDashboard();
+            } catch (e) {
+                showToast('同步失败: ' + e.message, 'error');
+            }
+        }
+
+        async function syncFromTduck() {
+            const start = document.getElementById('sync-start-time').value;
+            const end = document.getElementById('sync-end-time').value;
+            const body = {};
+            if (start) body.start_time = start.replace('T', ' ') + ':00';
+            if (end) body.end_time = end.replace('T', ' ') + ':00';
+            try {
+                const res = await apiPost('/api/tduck/sync', body);
+                const div = document.getElementById('tduck-sync-result');
+                div.classList.remove('hidden');
+                div.innerHTML = `<div class="p-4 bg-emerald-50 text-emerald-800 rounded-lg text-sm">成功: ${res.success}, 跳过: ${res.skipped}, 失败: ${res.error}</div>`;
+                showToast(`同步完成: ${res.success} 条成功`);
+                if (currentPage === 'dashboard') loadDashboard();
+            } catch (e) {
+                showToast('同步失败: ' + e.message, 'error');
+            }
+        }
+
+        async function loadSchedulerStatus() {
+            try {
+                const data = await apiGet('/api/scheduler/status');
+                const s = data.scheduler || {};
+                document.getElementById('scheduler-info').innerHTML = `
+                    <p>运行状态: ${s.running ? '<span class="text-emerald-600 font-medium">运行中</span>' : '<span class="text-slate-500">未运行</span>'}</p>
+                    ${s.next_run ? `<p>下次执行: ${s.next_run}</p>` : ''}
+                `;
+            } catch (e) {
+                document.getElementById('scheduler-info').textContent = '获取状态失败';
+            }
+        }
+
+        async function runScheduler() {
+            try {
+                await apiPost('/api/scheduler/run');
+                showToast('同步任务已执行');
+                loadSchedulerStatus();
+            } catch (e) {
+                showToast('执行失败: ' + e.message, 'error');
+            }
+        }
+
+        // Tests
+        async function testApi(type) {
+            const endpoints = {
+                health: '/health',
+                tduck: '/test/tduck',
+                halo: '/test/halo',
+                categories: '/test/halo/categories',
+                tags: '/test/halo/tags',
+                fields: '/api/tduck/fields'
+            };
+            const pre = document.getElementById(`result-${type}`);
+            pre.classList.remove('hidden');
+            pre.textContent = '请求中...';
+            try {
+                const data = await apiGet(endpoints[type]);
+                pre.textContent = JSON.stringify(data, null, 2);
+            } catch (e) {
+                pre.textContent = '错误: ' + e.message;
+            }
+        }
+
+        // Config
+        function saveConfig() {
+            const url = document.getElementById('api-base-url').value.trim();
+            localStorage.setItem('api_base', url);
+            showToast('配置已保存，刷新页面生效');
+        }
+
+        async function reloadConfig() {
+            try {
+                const res = await apiPost('/api/config/reload');
+                const div = document.getElementById('reload-config-result');
+                div.classList.remove('hidden');
+                div.innerHTML = `<div class="p-4 bg-emerald-50 text-emerald-800 rounded-lg text-sm">${JSON.stringify(res, null, 2)}</div>`;
+                showToast('配置热更新成功');
+                loadBackendConfig();
+            } catch (e) {
+                showToast('热更新失败: ' + e.message, 'error');
+            }
+        }
+
+        async function loadBackendConfig() {
+            const pre = document.getElementById('backend-config-display');
+            pre.textContent = '加载中...';
+            try {
+                const data = await apiGet('/api/config/info');
+                pre.textContent = JSON.stringify(data, null, 2);
+            } catch (e) {
+                pre.textContent = '加载失败: ' + e.message;
+            }
+        }
+
+        // Status Check
+        async function checkApiStatus() {
+            const statusEl = document.getElementById('api-status');
+            try {
+                await apiGet('/health');
+                statusEl.textContent = 'API: 正常';
+                statusEl.classList.add('text-emerald-400');
+                document.getElementById('health-status').innerHTML = '<span class="text-emerald-600 font-medium">正常</span>';
+            } catch (e) {
+                statusEl.textContent = 'API: 离线';
+                statusEl.classList.add('text-red-400');
+                document.getElementById('health-status').innerHTML = '<span class="text-red-600 font-medium">离线</span>';
+            }
+
+            try {
+                const tduck = await apiGet('/test/tduck');
+                document.getElementById('tduck-status').innerHTML = `<span class="text-emerald-600 font-medium">${tduck.status === 'ok' ? '正常' : '异常'}</span>`;
+            } catch (e) {
+                document.getElementById('tduck-status').innerHTML = '<span class="text-red-600 font-medium">离线</span>';
+            }
+
+            try {
+                const halo = await apiGet('/test/halo');
+                const ok = halo.status === 'ok';
+                document.getElementById('halo-status').innerHTML = `<span class="${ok ? 'text-emerald-600' : 'text-amber-600'} font-medium">${ok ? '正常' : (halo.status === 'disabled' ? '已禁用' : '异常')}</span>`;
+            } catch (e) {
+                document.getElementById('halo-status').innerHTML = '<span class="text-red-600 font-medium">离线</span>';
+            }
+
+            try {
+                const sched = await apiGet('/api/scheduler/status');
+                const running = sched.scheduler?.running;
+                document.getElementById('scheduler-indicator').textContent = running ? '运行中' : '已停止';
+                document.getElementById('scheduler-indicator').className = `text-xs px-2 py-1 rounded-full ${running ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`;
+            } catch (e) {}
+        }
+
+        // Utils
+        function getStatusClass(status) {
+            const map = {
+                pending: 'bg-amber-100 text-amber-700',
+                synced: 'bg-emerald-100 text-emerald-700',
+                rejected: 'bg-red-100 text-red-700'
+            };
+            return map[status] || 'bg-slate-100 text-slate-700';
+        }
+
+        function getStatusText(status) {
+            const map = { pending: '待同步', synced: '已同步', rejected: '已拒绝' };
+            return map[status] || status;
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const d = new Date(dateStr);
+            return d.toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // XSS-safe HTML sanitizer: only allow harmless tags
+        function sanitizeHtml(html) {
+            if (!html) return '';
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const allowedTags = new Set([
+                'p', 'br', 'hr', 'div', 'span', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+                'b', 'i', 'u', 's', 'strong', 'em', 'mark', 'small', 'sub', 'sup',
+                'ul', 'ol', 'li', 'blockquote', 'pre', 'code',
+                'a', 'img', 'table', 'thead', 'tbody', 'tr', 'td', 'th'
+            ]);
+            const allowedAttrs = new Set(['href', 'src', 'alt', 'title', 'class', 'id', 'target']);
+            const allowedSchemes = new Set(['http:', 'https:', 'mailto:', 'tel:']);
+
+            function walk(node) {
+                if (node.nodeType === Node.TEXT_NODE) return;
+                if (node.nodeType !== Node.ELEMENT_NODE) {
+                    node.remove();
+                    return;
+                }
+                const tag = node.tagName.toLowerCase();
+                if (!allowedTags.has(tag)) {
+                    const parent = node.parentNode;
+                    while (node.firstChild) {
+                        parent.insertBefore(node.firstChild, node);
+                    }
+                    parent.removeChild(node);
+                    return;
+                }
+                // Remove dangerous attributes
+                for (let i = node.attributes.length - 1; i >= 0; i--) {
+                    const attr = node.attributes[i];
+                    const name = attr.name.toLowerCase();
+                    if (!allowedAttrs.has(name)) {
+                        node.removeAttribute(attr.name);
+                        continue;
+                    }
+                    if (name === 'href' || name === 'src') {
+                        const val = attr.value.trim().toLowerCase();
+                        if (val.startsWith('javascript:') || val.startsWith('data:') || val.startsWith('vbscript:')) {
+                            node.removeAttribute(attr.name);
+                        } else if (name === 'href' && !(val.startsWith('http') || val.startsWith('mailto:') || val.startsWith('tel:') || val.startsWith('#') || val.startsWith('/'))) {
+                            node.removeAttribute(attr.name);
+                        }
+                    }
+                }
+                // Remove event handlers
+                for (const key in node) {
+                    if (key.startsWith('on') && typeof node[key] === 'function') {
+                        node[key] = null;
+                    }
+                }
+                // Recurse on children (copy to array since we may modify)
+                Array.from(node.childNodes).forEach(walk);
+            }
+
+            Array.from(doc.body.childNodes).forEach(walk);
+            return doc.body.innerHTML;
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const icon = document.getElementById('toast-icon');
+            const msg = document.getElementById('toast-message');
+            msg.textContent = message;
+            icon.className = type === 'error' ? 'fas fa-times-circle text-red-400' : type === 'warning' ? 'fas fa-exclamation-circle text-amber-400' : 'fas fa-check-circle text-emerald-400';
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 3000);
+        }
+    </script>
+</body>
+</html>

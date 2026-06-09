@@ -11,6 +11,20 @@ Halo博客API客户端
 Halo 版本: 2.22.14
 API 文档参考: https://blog.mochencloud.cn:1443/archives/halo-api-complete-guide-9cd78d
 Halo API 在线文档: https://api.halo.run
+
+支持热更新（无需重启服务）：
+- 所有配置项使用 @property 动态获取
+- 修改 config.json 后调用 POST /api/config/reload 即可生效
+- 支持热更新的配置：api_url, api_token, timeout, default_category, default_tags
+
+使用方法：
+    # 1. 修改 config.json 中的 halo.api_token
+    nano config.json
+    
+    # 2. 调用热更新 API
+    curl -X POST http://localhost:5000/api/config/reload
+    
+    # 3. 新 API Token 立即生效，无需重启服务
 """
 
 import logging
@@ -32,24 +46,51 @@ class HaloClient:
     - 端点: /apis/uc.api.content.halo.run/v1alpha1/posts
     - 认证: Authorization: Bearer {pat_token} 或 Basic Auth
     - 发布流程: 创建文章 -> 更新草稿 -> 发布
+    
+    支持热更新：每次请求时获取最新配置值
     """
 
     def __init__(self):
-        """从配置初始化Halo客户端"""
-        halo_config = config.halo
-
-        self.api_url = halo_config.get("api_url", "").rstrip("/")
-        self.api_token = halo_config.get("api_token", "")
-        self.site_name = halo_config.get("site_name", "default")
-        self.timeout = halo_config.get("timeout", 30)
-        self.default_category = halo_config.get("default_category", "表白墙")
-        self.default_tags = halo_config.get("default_tags", ["投稿", "校园墙"])
-        self.owner = halo_config.get("owner", "admin")
-
+        """初始化 Halo 客户端（不缓存配置）"""
         self.logger = logging.getLogger(__name__)
 
+    @property
+    def api_url(self) -> str:
+        """获取 api_url（每次从 config 读取）"""
+        return config.halo.get("api_url", "").rstrip("/")
+
+    @property
+    def api_token(self) -> str:
+        """获取 api_token（每次从 config 读取）"""
+        return config.halo.get("api_token", "")
+
+    @property
+    def site_name(self) -> str:
+        """获取 site_name（每次从 config 读取）"""
+        return config.halo.get("site_name", "default")
+
+    @property
+    def timeout(self) -> int:
+        """获取 timeout（每次从 config 读取）"""
+        return config.halo.get("timeout", 30)
+
+    @property
+    def default_category(self) -> str:
+        """获取 default_category（每次从 config 读取）"""
+        return config.halo.get("default_category", "表白墙")
+
+    @property
+    def default_tags(self) -> List[str]:
+        """获取 default_tags（每次从 config 读取）"""
+        return config.halo.get("default_tags", ["投稿", "校园墙"])
+
+    @property
+    def owner(self) -> str:
+        """获取 owner（每次从 config 读取）"""
+        return config.halo.get("owner", "admin")
+
     def _get_headers(self) -> Dict[str, str]:
-        """动态构建请求头"""
+        """动态构建请求头（每次获取最新 token）"""
         return {
             "Authorization": f"Bearer {self.api_token}",
             "Content-Type": "application/json"

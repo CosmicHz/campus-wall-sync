@@ -1,5 +1,8 @@
 {
     "_comment": "配置文件说明：请复制此文件为 config.json 并填写实际值",
+    "_hot_reload": "支持热更新：修改后调用 POST /api/config/reload 即可生效（无需重启服务）",
+    "_hot_reload_supported": "支持热更新的配置：tduck.api_key, halo.api_token, tduck.field_ids, review.*, content_filter.*",
+    "_hot_reload_not_supported": "不支持热更新（需重启）：database.path, app.host, app.port",
 
     "app": {
         "debug": false,

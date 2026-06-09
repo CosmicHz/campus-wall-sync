@@ -53,6 +53,7 @@ run_local.bat
 pip install -r requirements.txt
 python -m src.app
 ```
+启动服务后，打开浏览器访问 `http://localhost:5000/admin` 开发后台管理界面。
 
 ### 2. 配置服务
 
@@ -153,6 +154,29 @@ python -m src.app
 }
 ```
 
+### 配置热更新
+
+修改配置后无需重启服务，调用 API 即可生效：
+
+```bash
+# 1. 修改 config.json
+vim config.json
+
+# 2. 热更新配置
+curl -X POST http://localhost:5000/api/config/reload
+```
+
+**支持热更新的配置：**
+- `tduck.api_key` - tduck API 密钥
+- `halo.api_token` - Halo API Token
+- `tduck.field_ids.*` - 表单字段映射
+- `review.*` - 审核配置
+- `content_filter.*` - 内容过滤配置
+
+**不支持热更新（需重启）：**
+- `database.path` - 数据库路径
+- `app.host` / `app.port` - 服务地址和端口
+
 
 ## API 接口
 
@@ -179,6 +203,13 @@ python -m src.app
 |------|------|------|
 | `/api/scheduler/status` | GET | 查看定时任务状态 |
 | `/api/scheduler/run` | POST | 手动触发一次同步 |
+
+### 配置管理
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/config/reload` | POST | 热更新配置（无需重启） |
+| `/api/config/info` | GET | 查看当前配置 |
 
 ### 测试接口
 
