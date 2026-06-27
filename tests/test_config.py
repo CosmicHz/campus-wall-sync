@@ -267,22 +267,18 @@ class TestConfigHotReload:
         # 原配置仍然可用（未被覆盖）
         assert cfg.tduck is not None
 
-    def test_reload_missing_file_reloads_from_default(self, temp_config, reset_config):
-        """测试缺失文件时从默认路径重新加载"""
+    def test_reload_missing_file_returns_false(self, temp_config, reset_config):
+        """测试跟踪的配置文件被删除时 reload() 返回 False 而非崩溃或静默回退"""
         cfg = Config()
 
         # 删除临时配置文件
         config_path = temp_config["config_path"]
         os.remove(config_path)
 
-        # 热更新会尝试重新查找配置文件
-        # 由于项目根目录有 config.json，它会成功加载
+        # reload() 只从最初加载的路径重载，文件不存在则返回 False，不切换配置源
         success = cfg.reload()
 
-        # 如果项目根目录有 config.json，则成功
-        # 否则失败
-        # 这里我们验证 reload() 不会崩溃
-        assert isinstance(success, bool)
+        assert success is False
 
     def test_get_config_path_returns_string(self, temp_config, reset_config):
         """测试 get_config_path 返回字符串"""
