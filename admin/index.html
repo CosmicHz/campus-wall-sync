@@ -566,30 +566,28 @@
         // Dashboard
         async function loadDashboard() {
             try {
-                const data = await apiGet('/api/posts?page=1&size=1');
-                const total = data.total || 0;
+                const [all, pendingRes, syncedRes, rejectedRes, recent] = await Promise.all([
+                    apiGet('/api/posts?page=1&size=1'),
+                    apiGet('/api/posts?page=1&size=1&status=pending'),
+                    apiGet('/api/posts?page=1&size=1&status=synced'),
+                    apiGet('/api/posts?page=1&size=1&status=rejected'),
+                    apiGet('/api/posts?page=1&size=5'),
+                ]);
 
-                let pending = 0, synced = 0, rejected = 0;
-                if (total > 0) {
-                    const all = await apiGet('/api/posts?page=1&size=' + Math.min(total, 1000));
-                    all.posts?.forEach(p => {
-                        if (p.status === 'pending') pending++;
-                        else if (p.status === 'synced') synced++;
-                        else if (p.status === 'rejected') rejected++;
-                    });
-                }
+                const total = all.total || 0;
+                const pending = pendingRes.total || 0;
+                const synced = syncedRes.total || 0;
+                const rejected = rejectedRes.total || 0;
 
                 document.getElementById('stat-total').textContent = total;
                 document.getElementById('stat-pending').textContent = pending;
                 document.getElementById('stat-synced').textContent = synced;
                 document.getElementById('stat-rejected').textContent = rejected;
 
-                if (pending > 0) {
-                    document.getElementById('pending-badge').textContent = pending;
-                    document.getElementById('pending-badge').classList.remove('hidden');
-                }
+                const badge = document.getElementById('pending-badge');
+                badge.textContent = pending;
+                badge.classList.toggle('hidden', pending === 0);
 
-                const recent = await apiGet('/api/posts?page=1&size=5');
                 renderRecentPosts(recent.posts || []);
             } catch (e) {
                 console.error('Dashboard load failed:', e);
@@ -607,7 +605,7 @@
                     <div class="flex items-center justify-between">
                         <div class="flex-1 min-w-0">
                             <p class="font-medium text-slate-800 truncate">${escapeHtml(p.title)}</p>
-                            <p class="text-sm text-slate-500">${escapeHtml(p.author)} · ${p.class_name || '无班级'}</p>
+                            <p class="text-sm text-slate-500">${escapeHtml(p.author)} · ${escapeHtml(p.class_name) || '无班级'}</p>
                         </div>
                         <span class="ml-3 px-2 py-1 text-xs rounded-full ${getStatusClass(p.status)}">${getStatusText(p.status)}</span>
                     </div>
@@ -728,13 +726,13 @@
                             <div class="text-slate-700 prose prose-sm max-w-none">${sanitizeHtml(p.content)}</div>
                         </div>
                         <div class="grid grid-cols-2 gap-4 text-sm">
-                            <div><span class="text-slate-500">tduck ID:</span> <span class="text-slate-800">${p.tduck_id || '-'}</span></div>
-                            <div><span class="text-slate-500">序号:</span> <span class="text-slate-800">${p.tduck_serial || '-'}</span></div>
-                            <div><span class="text-slate-500">提交时间:</span> <span class="text-slate-800">${p.submit_time || '-'}</span></div>
-                            <div><span class="text-slate-500">提交地点:</span> <span class="text-slate-800">${p.submit_address || '-'}</span></div>
+                            <div><span class="text-slate-500">tduck ID:</span> <span class="text-slate-800">${escapeHtml(String(p.tduck_id)) || '-'}</span></div>
+                            <div><span class="text-slate-500">序号:</span> <span class="text-slate-800">${escapeHtml(String(p.tduck_serial)) || '-'}</span></div>
+                            <div><span class="text-slate-500">提交时间:</span> <span class="text-slate-800">${escapeHtml(p.submit_time) || '-'}</span></div>
+                            <div><span class="text-slate-500">提交地点:</span> <span class="text-slate-800">${escapeHtml(p.submit_address) || '-'}</span></div>
                             <div><span class="text-slate-500">微信昵称:</span> <span class="text-slate-800">${escapeHtml(p.wx_nickname || '-')}</span></div>
                             <div><span class="text-slate-500">姓名:</span> <span class="text-slate-800">${escapeHtml(p.user_name || '-')}</span></div>
-                            ${p.halo_post_url ? `<div class="col-span-2"><span class="text-slate-500">Halo 链接:</span> <a href="${p.halo_post_url}" target="_blank" class="text-primary-600 hover:underline">${escapeHtml(p.halo_post_url)}</a></div>` : ''}
+                            ${p.halo_post_url && /^https?:\/\//i.test(p.halo_post_url) ? `<div class="col-span-2"><span class="text-slate-500">Halo 链接:</span> <a href="${escapeHtml(p.halo_post_url)}" target="_blank" rel="noopener noreferrer" class="text-primary-600 hover:underline">${escapeHtml(p.halo_post_url)}</a></div>` : ''}
                         </div>
                     </div>
                 `;

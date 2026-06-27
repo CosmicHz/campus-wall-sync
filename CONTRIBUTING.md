@@ -6,7 +6,7 @@
 
 ## 项目结构
 
-```
+```text
 src/
 ├── hooks/              # 业务钩子（开发组重点修改）
 │   ├── questionnaire_parser.py   # 表单数据解析
@@ -361,7 +361,7 @@ def test_tduck_get_form_fields(mock_get):
     """测试获取表单字段"""
     mock_get.return_value = Mock(
         status_code=200,
-        json=lambda: {"code": 200, "data": {"fields": [...]}
+        json=lambda: {"code": 200, "data": {"fields": [...]}}
     )
     
     client = TduckClient()

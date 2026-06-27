@@ -84,7 +84,7 @@ class Config:
                 return
 
         raise FileNotFoundError(
-            f"未找到配置文件！请复制 config.json.example 为 config.json 并填写配置"
+            "未找到配置文件！请复制 config.json.example 为 config.json 并填写配置"
         )
 
     def reload(self) -> bool:
