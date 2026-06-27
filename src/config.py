@@ -70,10 +70,15 @@ class Config:
             Path(__file__).parent.parent / "config.json",
         ]
 
-        # 检查环境变量
+        # 检查环境变量：如果指定了 CONFIG_PATH，则必须存在，不允许回退
         env_config_path = os.environ.get("CONFIG_PATH")
         if env_config_path:
-            config_paths.insert(0, Path(env_config_path))
+            config_path = Path(env_config_path)
+            if not config_path.exists():
+                raise FileNotFoundError(
+                    f"CONFIG_PATH 指定的配置文件不存在: {config_path}"
+                )
+            config_paths = [config_path]
 
         for config_path in config_paths:
             if config_path.exists():
@@ -95,15 +100,18 @@ class Config:
             是否成功重载
         """
         try:
-            if self._config_path and self._config_path.exists():
+            if self._config_path is not None:
+                if not self._config_path.exists():
+                    logger.error(f"[配置] 热更新失败，配置文件不存在: {self._config_path}")
+                    return False
+
                 with open(self._config_path, "r", encoding="utf-8") as f:
                     self._config_data = json.load(f)
                 logger.info(f"[配置] 热更新成功: {self._config_path}")
                 return True
-            else:
-                # 如果没有记录路径，尝试重新查找
-                self._load_config()
-                return True
+
+            self._load_config()
+            return True
         except Exception as e:
             logger.error(f"[配置] 热更新失败: {e}")
             return False
