@@ -819,7 +819,7 @@ def main():
     print(f"[启动] 投稿列表: http://{host}:{port}/api/posts")
 
     try:
-        app.run(host=host, port=port, debug=debug)
+        app.run(host=host, port=port, debug=debug, use_reloader=False)
     finally:
         from src.scheduler import stop_scheduler
         stop_scheduler()
